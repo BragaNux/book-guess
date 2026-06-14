@@ -1,0 +1,37 @@
+@inherits LayoutComponentBase
+@inject AppState AppState
+@inject NavigationManager Nav
+@implements IDisposable
+
+<AuthInitializer />
+<NavBar />
+
+<main>
+    @Body
+</main>
+
+@if (_toasts.Count > 0)
+{
+    <div class="toast-container">
+        @foreach (var t in _toasts)
+        {
+            <div class="toast toast-@t.Type">@t.Message</div>
+        }
+    </div>
+}
+
+@code {
+    private List<ToastItem> _toasts = [];
+
+    protected override void OnInitialized()
+    {
+        AppState.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+    }
+
+    private record ToastItem(string Message, string Type);
+}

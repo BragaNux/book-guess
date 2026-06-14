@@ -1,0 +1,32 @@
+@using BookGuess.Web.Models
+
+<div class="ranking-row">
+    <div class="ranking-pos @PosClass">@Entry.Position</div>
+    <div class="avatar avatar-sm">@Initials</div>
+    <div style="flex:1;min-width:0">
+        <div class="font-medium text-sm" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@Entry.Name</div>
+        <div class="text-xs text-muted" style="margin-top:2px">
+            <Icon Name="star" Size="11" Class="stat-star" Fill="currentColor" StrokeWidth="0" />
+            Nível @Entry.Level
+        </div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+        <div class="font-bold text-sm text-primary">@Entry.Score</div>
+        <div class="text-xs text-muted">pts</div>
+    </div>
+</div>
+
+<style>
+    .stat-star { color: var(--warning); vertical-align: middle; }
+</style>
+
+@code {
+    [Parameter, EditorRequired] public RankingEntry Entry { get; set; } = default!;
+
+    private string Initials => Entry.Name.Length > 0 ? Entry.Name[0].ToString().ToUpper() : "?";
+
+    private string PosClass => Entry.Position switch
+    {
+        1 => "top-1", 2 => "top-2", 3 => "top-3", _ => ""
+    };
+}

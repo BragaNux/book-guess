@@ -1,0 +1,439 @@
+@page "/partida"
+@inject BookGuessApiClient Api
+@inject AppState AppState
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>Partida — BookGuess</PageTitle>
+
+@if (_result is not null)
+{
+    <ResultScreen Result="_result" IsWin="_isWin" OnPlayAgain="PlayAgain" />
+}
+else if (_match is not null)
+{
+    <div class="container page-enter">
+        <div class="game-layout">
+            <!-- Coluna principal -->
+            <div>
+                <!-- Trecho -->
+                <div class="quote-card mb-24">
+                    @if (_match.IsDaily)
+                    {
+                        <div class="daily-badge">
+                            <Icon Name="calendar" Size="12" />
+                            Desafio Diário
+                        </div>
+                    }
+                    <p class="quote-text">@_match.Quote</p>
+                    <div class="quote-footer">
+                        <DifficultyStars Level="@_match.Difficulty" />
+                        <span class="text-muted text-xs">Dificuldade</span>
+                    </div>
+                </div>
+
+                <!-- Dicas recebidas -->
+                @if (_hints.Count > 0)
+                {
+                    <div class="hints-box mb-24">
+                        <div class="hints-box__header">
+                            <div class="flex items-center gap-8">
+                                <Icon Name="lightbulb" Size="15" Class="text-warning" />
+                                <span class="hints-box__title">Dicas recebidas</span>
+                            </div>
+                            <span class="badge badge-primary">@_hints.Count / 3</span>
+                        </div>
+                        @foreach (var (hint, i) in _hints.Select((h, i) => (h, i)))
+                        {
+                            <div class="hint-item">
+                                <span class="hint-item__num">@(i + 1)</span>
+                                <p class="hint-item__text">@hint</p>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Palpite -->
+                <div class="guess-box">
+                    <h3 class="guess-box__title">Qual é este livro?</h3>
+                    <p class="guess-box__sub">Você pode tentar pelo título ou pelo nome do autor</p>
+
+                    <div class="guess-type-tabs">
+                        <button class="guess-tab @(_guessType == "Book" ? "guess-tab--active" : "")"
+                                @onclick='() => _guessType = "Book"'>
+                            <Icon Name="book-open" Size="14" />
+                            Título
+                        </button>
+                        <button class="guess-tab @(_guessType == "Author" ? "guess-tab--active" : "")"
+                                @onclick='() => _guessType = "Author"'>
+                            <Icon Name="user" Size="14" />
+                            Autor
+                        </button>
+                    </div>
+
+                    <div class="guess-input-row">
+                        <div class="input-wrap" style="flex:1">
+                            <span class="input-icon">
+                                <Icon Name="@(_guessType == "Book" ? "book-open" : "user")" Size="15" />
+                            </span>
+                            <input @bind="_guessText" @bind:event="oninput" @onkeydown="OnKeyDown"
+                                   class="form-input"
+                                   placeholder="@(_guessType == "Book" ? "Ex: Dom Casmurro..." : "Ex: Machado de Assis...")"
+                                   disabled="@_loading" />
+                        </div>
+                        <button class="btn btn-primary guess-submit"
+                                @onclick="SubmitGuess"
+                                disabled="@(_loading || string.IsNullOrWhiteSpace(_guessText))">
+                            @if (_loading) {
+                                <span class="spinner-sm"></span>
+                            } else {
+                                <Icon Name="send" Size="14" />
+                                <span>Enviar</span>
+                            }
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_feedback))
+                    {
+                        <div class="guess-feedback guess-feedback--@(_feedbackIsError ? "error" : "success")">
+                            <Icon Name="@(_feedbackIsError ? "x-circle" : "check-circle-2")" Size="14" />
+                            @_feedback
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Painel lateral -->
+            <div class="game-sidebar">
+                <div class="sidebar-card">
+                    <div class="sidebar-card__label">
+                        <Icon Name="target" Size="12" />
+                        Tentativas
+                    </div>
+                    <AttemptDots Total="5" Remaining="@_match.AttemptsRemaining" />
+                    <div class="sidebar-card__sub">@_match.AttemptsRemaining restante@(_match.AttemptsRemaining != 1 ? "s" : "") de 5</div>
+                </div>
+
+                <div class="sidebar-card">
+                    <div class="sidebar-card__label">
+                        <Icon Name="bar-chart-2" Size="12" />
+                        Pontuação
+                    </div>
+                    <div class="score-display">@_match.Score</div>
+                    <div class="progress-bar-wrap mt-8">
+                        <div class="progress-bar-fill" style="width:@(Math.Min(_match.Score / 10, 100))%"></div>
+                    </div>
+                    <div class="sidebar-card__sub">máx. 1000 pts</div>
+                </div>
+
+                <button class="btn hint-btn w-full"
+                        @onclick="RequestHint"
+                        disabled="@(_match.HintsRemaining == 0 || _loading)">
+                    <div class="flex items-center gap-8">
+                        <Icon Name="lightbulb" Size="15" />
+                        <span>Pedir Dica</span>
+                    </div>
+                    <span class="badge @(_match.HintsRemaining > 0 ? "badge-warning" : "badge-muted")">
+                        @_match.HintsRemaining
+                    </span>
+                </button>
+                @if (_match.HintsRemaining > 0)
+                {
+                    <p class="hint-cost-note">−150 pts por dica</p>
+                }
+
+                <button class="btn btn-secondary w-full mt-8" @onclick="GoHome">
+                    <Icon Name="arrow-left" Size="14" />
+                    Voltar ao início
+                </button>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container" style="padding-top:80px;text-align:center">
+        <div class="skeleton" style="height:220px;max-width:720px;margin:0 auto;border-radius:16px;margin-bottom:24px"></div>
+        <div class="skeleton" style="height:140px;max-width:720px;margin:0 auto;border-radius:12px"></div>
+    </div>
+}
+
+<style>
+    .daily-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(245,158,11,0.1);
+        border: 1px solid rgba(245,158,11,0.25);
+        color: var(--warning);
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 100px;
+        margin-bottom: 20px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+    .quote-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+    }
+
+    /* Hints */
+    .hints-box {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+    }
+    .hints-box__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 13px 18px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(109,93,252,0.04);
+    }
+    .hints-box__title { font-size: 0.84rem; font-weight: 600; }
+    .hint-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 18px;
+        border-bottom: 1px solid rgba(28,36,64,0.5);
+        animation: slide-up 0.3s ease both;
+    }
+    .hint-item:last-child { border-bottom: none; }
+    .hint-item__num {
+        min-width: 22px;
+        height: 22px;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        color: #fff;
+        border-radius: 50%;
+        font-size: 0.68rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+    .hint-item__text { font-style: italic; color: var(--text-muted); font-size: 0.875rem; line-height: 1.65; }
+
+    /* Guess box */
+    .guess-box {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 28px;
+    }
+    .guess-box__title { font-size: 1.05rem; font-weight: 700; }
+    .guess-box__sub   { color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; }
+    .guess-type-tabs  { display: flex; gap: 6px; margin: 18px 0 14px; }
+    .guess-tab {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 9px;
+        border-radius: var(--radius-sm);
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-muted);
+        transition: all var(--transition);
+        font-family: inherit;
+    }
+    .guess-tab:hover { border-color: rgba(109,93,252,0.4); color: var(--primary); }
+    .guess-tab--active { background: var(--primary-light); border-color: rgba(109,93,252,0.4); color: var(--primary); }
+    .guess-input-row { display: flex; gap: 8px; }
+    .guess-submit    { min-width: 96px; flex-shrink: 0; }
+    .guess-feedback {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 12px;
+        padding: 10px 14px;
+        border-radius: var(--radius-sm);
+        font-size: 0.84rem;
+        font-weight: 500;
+        animation: slide-up 0.2s ease;
+    }
+    .guess-feedback--error   { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.22);  color: var(--danger); }
+    .guess-feedback--success { background: rgba(34,197,94,0.1);  border: 1px solid rgba(34,197,94,0.22);  color: var(--success); }
+
+    /* Sidebar */
+    .game-sidebar { display: flex; flex-direction: column; gap: 14px; }
+    .sidebar-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px;
+    }
+    .sidebar-card__label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+    }
+    .sidebar-card__sub { font-size: 0.7rem; color: var(--text-subtle); margin-top: 8px; }
+    .score-display {
+        font-size: 2.4rem;
+        font-weight: 900;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: -0.03em;
+        line-height: 1;
+    }
+    .hint-btn {
+        background: rgba(245,158,11,0.08);
+        border: 1px solid rgba(245,158,11,0.22);
+        color: var(--warning);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        transition: all var(--transition-md);
+    }
+    .hint-btn:hover:not(:disabled) { background: rgba(245,158,11,0.14); border-color: rgba(245,158,11,0.4); }
+    .hint-btn:disabled { opacity: 0.35; }
+    .hint-cost-note { font-size: 0.68rem; color: var(--text-subtle); text-align: center; margin-top: 4px; }
+
+    @@keyframes slide-up {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @@media (max-width: 768px) {
+        .game-sidebar { order: -1; }
+    }
+</style>
+
+@code {
+    private StartMatchResponse? _match;
+    private MatchResultResponse? _result;
+    private bool _isWin;
+    private string _guessText = "";
+    private string _guessType = "Book";
+    private string? _feedback;
+    private bool _feedbackIsError = true;
+    private bool _loading;
+    private bool _disposed;
+    private List<string> _hints => AppState.ActiveHints;
+
+    protected override void OnInitialized()
+    {
+        AppState.OnChange += HandleAppStateChange;
+
+        if (!AppState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        if (AppState.ActiveMatch is null) { Nav.NavigateTo("/"); return; }
+        _match = AppState.ActiveMatch;
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        AppState.OnChange -= HandleAppStateChange;
+    }
+
+    private void HandleAppStateChange()
+    {
+        if (_disposed) return;
+        if (!AppState.IsAuthenticated)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SubmitGuess();
+    }
+
+    private async Task SubmitGuess()
+    {
+        if (string.IsNullOrWhiteSpace(_guessText) || _match is null || _disposed) return;
+        _loading  = true;
+        _feedback = null;
+
+        var res = await Api.SubmitGuessAsync(_match.MatchId, _guessText, _guessType);
+
+        if (_disposed) return;
+
+        if (res?.Success == true && res.Data is not null)
+        {
+            var g = res.Data;
+            if (g.IsCorrect)
+            {
+                _isWin  = true;
+                _result = g.Result;
+                AppState.UpdateXP(g.Result?.XPEarned ?? 0);
+                AppState.ClearMatch();
+            }
+            else if (g.MatchStatus == "Lost")
+            {
+                _isWin  = false;
+                _result = g.Result ?? new MatchResultResponse("", "", 0, 0, null);
+                AppState.ClearMatch();
+            }
+            else
+            {
+                _feedback        = "Não é isso! Tente novamente.";
+                _feedbackIsError = true;
+                _match           = _match with { AttemptsRemaining = g.AttemptsRemaining, Score = g.Score };
+                AppState.ActiveMatch = _match;
+                _guessText       = "";
+            }
+        }
+        else
+        {
+            _feedback        = res?.Message ?? "Erro ao enviar palpite.";
+            _feedbackIsError = true;
+        }
+
+        if (!_disposed) _loading = false;
+    }
+
+    private async Task RequestHint()
+    {
+        if (_match is null || _disposed) return;
+        _loading = true;
+
+        var res = await Api.RequestHintAsync(_match.MatchId);
+
+        if (_disposed) return;
+
+        if (res?.Success == true && res.Data is not null)
+        {
+            AppState.AddHint(res.Data.Hint);
+            _match = _match with { HintsRemaining = res.Data.HintsRemaining, Score = res.Data.Score };
+            AppState.ActiveMatch = _match;
+            _feedback = null;
+        }
+        else
+        {
+            _feedback        = res?.Message ?? "Erro ao pedir dica.";
+            _feedbackIsError = true;
+        }
+
+        if (!_disposed) _loading = false;
+    }
+
+    private void GoHome()    => Nav.NavigateTo("/");
+    private void PlayAgain() { AppState.ClearMatch(); Nav.NavigateTo("/"); }
+}

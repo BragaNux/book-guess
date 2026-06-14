@@ -1,0 +1,130 @@
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ILocalStorageService Storage
+@implements IDisposable
+
+<nav class="navbar">
+    <div class="container">
+        <div class="navbar-inner">
+
+            <!-- Esquerda: Logo -->
+            <div class="navbar-left">
+                <a href="/" class="navbar-logo">
+                    <span class="navbar-logo-icon">
+                        <Icon Name="book-open" Size="20" />
+                    </span>
+                    BookGuess
+                </a>
+            </div>
+
+            <!-- Centro: Stats (só quando autenticado) -->
+            <div class="navbar-center">
+                @if (AppState.IsAuthenticated)
+                {
+                    <div class="navbar-stat">
+                        <Icon Name="star" Size="13" Class="stat-star" />
+                        <span>Nível @AppState.Level</span>
+                    </div>
+                    <div class="navbar-stat-sep"></div>
+                    <div class="navbar-stat">
+                        <Icon Name="zap" Size="13" Class="stat-zap" />
+                        <span>@AppState.XP XP</span>
+                    </div>
+                }
+            </div>
+
+            <!-- Direita: Ações -->
+            <div class="navbar-right">
+                @if (AppState.IsAuthenticated)
+                {
+                    <a href="/ranking" class="btn btn-secondary btn-sm">
+                        <Icon Name="trophy" Size="13" />
+                        Ranking
+                    </a>
+                    <a href="/perfil" class="btn btn-secondary btn-sm">
+                        <Icon Name="user" Size="13" />
+                        Perfil
+                    </a>
+                    <button class="btn btn-ghost" @onclick="Logout" title="Sair">
+                        <Icon Name="log-out" Size="15" />
+                    </button>
+                }
+                else
+                {
+                    <a href="/login" class="btn btn-secondary btn-sm">
+                        <Icon Name="log-in" Size="13" />
+                        Entrar
+                    </a>
+                    <a href="/registro" class="btn btn-primary btn-sm">
+                        <Icon Name="sparkles" Size="13" />
+                        Começar grátis
+                    </a>
+                }
+            </div>
+
+        </div>
+    </div>
+</nav>
+
+<style>
+    .navbar-inner {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        width: 100%;
+        gap: 16px;
+    }
+    .navbar-left  { display: flex; align-items: center; }
+    .navbar-center {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+    }
+    .navbar-right {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+    }
+
+    .navbar-stat {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        background: rgba(28,36,64,0.7);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+    .navbar-stat-sep {
+        width: 1px;
+        height: 16px;
+        background: var(--border);
+        margin: 0 2px;
+    }
+
+    .stat-star { color: var(--warning); }
+    .stat-zap  { color: var(--primary); }
+
+    @@media (max-width: 640px) {
+        .navbar-inner { grid-template-columns: auto 1fr; }
+        .navbar-center { display: none; }
+    }
+</style>
+
+@code {
+    protected override void OnInitialized() => AppState.OnChange += StateHasChanged;
+    public void Dispose() => AppState.OnChange -= StateHasChanged;
+
+    private async Task Logout()
+    {
+        await Storage.RemoveItemAsync("bg_token");
+        AppState.Clear();
+        Nav.NavigateTo("/");
+    }
+}

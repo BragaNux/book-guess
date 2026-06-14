@@ -1,0 +1,252 @@
+@page "/perfil"
+@inject BookGuessApiClient Api
+@inject AppState AppState
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>Perfil — BookGuess</PageTitle>
+
+<div class="container page-enter" style="padding-top:40px;padding-bottom:72px;max-width:840px">
+    @if (_loading)
+    {
+        <div class="skeleton" style="height:200px;border-radius:20px;margin-bottom:16px"></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
+            @for (int i = 0; i < 3; i++) { <div class="skeleton" style="height:100px;border-radius:14px"></div> }
+        </div>
+    }
+    else if (_profile is not null)
+    {
+        <div class="profile-hero">
+            <div class="profile-avatar">@_profile.Name[0].ToString().ToUpper()</div>
+            <div class="profile-info">
+                <h2>@_profile.Name</h2>
+                <p class="text-muted mt-4" style="font-size:0.85rem">@_profile.Email</p>
+                <div class="profile-badges">
+                    <div class="badge badge-primary">
+                        <Icon Name="star" Size="11" Fill="currentColor" StrokeWidth="0" />
+                        Nível @_profile.Level
+                    </div>
+                    <div class="badge badge-success">
+                        <Icon Name="trophy" Size="11" />
+                        @_profile.TotalWins vitórias
+                    </div>
+                    <div class="badge badge-warning">
+                        <Icon Name="flame" Size="11" />
+                        @_profile.CurrentStreak dias seguidos
+                    </div>
+                </div>
+            </div>
+            <div class="profile-xp-block">
+                <div class="xp-info">
+                    <span style="font-weight:600;font-size:0.75rem">XP</span>
+                    <span class="font-bold" style="font-size:0.75rem">@_profile.XP / @NextLevelXP(_profile.Level)</span>
+                </div>
+                <div class="progress-bar-wrap">
+                    <div class="progress-bar-fill" style="width:@XPPercent(_profile.XP, _profile.Level)%"></div>
+                </div>
+                <p class="text-xs text-muted mt-8">
+                    Faltam @(NextLevelXP(_profile.Level) - _profile.XP) XP para o Nível @(_profile.Level + 1)
+                </p>
+            </div>
+        </div>
+
+        <div class="stats-grid stagger">
+            <div class="stat-card">
+                <div class="stat-card__icon icon-purple">
+                    <Icon Name="book-open" Size="20" />
+                </div>
+                <div class="stat-card__value text-primary">@_profile.TotalWins</div>
+                <div class="stat-card__label">Livros adivinhados</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__icon icon-orange">
+                    <Icon Name="flame" Size="20" />
+                </div>
+                <div class="stat-card__value text-warning">@_profile.CurrentStreak</div>
+                <div class="stat-card__label">Sequência atual</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card__icon icon-cyan">
+                    <Icon Name="zap" Size="20" />
+                </div>
+                <div class="stat-card__value text-accent">@_profile.BestStreak</div>
+                <div class="stat-card__label">Melhor sequência</div>
+            </div>
+        </div>
+
+        @if (_profile.Achievements.Any())
+        {
+            <div class="achievements-section">
+                <div class="flex items-center gap-10 mb-16">
+                    <Icon Name="medal" Size="18" Class="text-warning" />
+                    <h3>Conquistas desbloqueadas</h3>
+                </div>
+                <div class="achievements-grid stagger">
+                    @foreach (var a in _profile.Achievements)
+                    {
+                        <div class="achievement-card card-glow">
+                            <div class="achievement-icon">@(a.Icon ?? "🏅")</div>
+                            <div class="achievement-name">@a.Name</div>
+                            <div class="achievement-desc">@a.Description</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="no-achievements">
+                <Icon Name="medal" Size="28" Class="text-muted" />
+                <p class="mt-12" style="font-size:0.875rem">Jogue mais partidas para desbloquear conquistas!</p>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="error-state">
+            <Icon Name="alert-circle" Size="32" Class="text-muted" />
+            <h3 class="mt-16">Não foi possível carregar o perfil</h3>
+            <button class="btn btn-primary mt-24" @onclick="LoadProfile">
+                <Icon Name="refresh-cw" Size="14" />
+                Tentar novamente
+            </button>
+        </div>
+    }
+</div>
+
+<style>
+    .profile-hero {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 32px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 24px;
+        align-items: start;
+        margin-bottom: 16px;
+        box-shadow: var(--shadow-md);
+    }
+    .profile-avatar {
+        width: 80px; height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: 800;
+        color: #fff;
+        flex-shrink: 0;
+        box-shadow: 0 0 24px rgba(109,93,252,0.35);
+    }
+    .profile-info { min-width: 0; }
+    .profile-badges { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+    .profile-xp-block { min-width: 180px; }
+    .gap-10 { gap: 10px; }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3,1fr);
+        gap: 14px;
+        margin-bottom: 16px;
+    }
+    .stat-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px 20px;
+        text-align: center;
+        transition: all var(--transition-md);
+    }
+    .stat-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+    .stat-card__icon {
+        width: 44px; height: 44px;
+        border-radius: var(--radius-sm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 14px;
+    }
+    .icon-purple { background: var(--primary-light);         color: var(--primary); border: 1px solid rgba(109,93,252,0.2); }
+    .icon-orange { background: rgba(245,158,11,0.1);         color: var(--warning); border: 1px solid rgba(245,158,11,0.2); }
+    .icon-cyan   { background: rgba(6,182,212,0.1);          color: var(--accent);  border: 1px solid rgba(6,182,212,0.2);  }
+    .text-accent { color: var(--accent); }
+    .stat-card__value { font-size: 2.4rem; font-weight: 900; line-height: 1; letter-spacing: -0.03em; }
+    .stat-card__label { font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; }
+
+    .achievements-section { margin-top: 4px; }
+    .mb-16 { margin-bottom: 16px; }
+    .achievements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px,1fr)); gap: 12px; }
+    .achievement-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px 16px;
+        text-align: center;
+        transition: all var(--transition-md);
+    }
+    .achievement-icon { font-size: 1.8rem; margin-bottom: 10px; }
+    .achievement-name { font-size: 0.84rem; font-weight: 600; }
+    .achievement-desc { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+
+    .no-achievements, .error-state {
+        text-align: center;
+        padding: 48px 32px;
+        background: var(--surface);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius-lg);
+    }
+
+    @@media (max-width: 640px) {
+        .profile-hero { grid-template-columns: 1fr; text-align: center; }
+        .profile-badges { justify-content: center; }
+        .profile-xp-block { min-width: unset; }
+        .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+</style>
+
+@code {
+    private ProfileResponse? _profile;
+    private bool _loading = true;
+    private bool _disposed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AppState.OnChange += HandleAppStateChange;
+        if (!AppState.IsAuthenticated) { Nav.NavigateTo("/login"); return; }
+        await LoadProfile();
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        AppState.OnChange -= HandleAppStateChange;
+    }
+
+    private void HandleAppStateChange()
+    {
+        if (_disposed) return;
+        if (!AppState.IsAuthenticated) { Nav.NavigateTo("/"); return; }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadProfile()
+    {
+        _loading = true;
+        var res  = await Api.GetProfileAsync();
+        if (!_disposed)
+        {
+            if (res?.Success == true) _profile = res.Data;
+            _loading = false;
+        }
+    }
+
+    private static int NextLevelXP(int level) => level switch
+    {
+        1 => 500, 2 => 1000, 3 => 2000, 4 => 3500, _ => 9999
+    };
+
+    private static double XPPercent(int xp, int level) =>
+        Math.Min(xp * 100.0 / NextLevelXP(level), 100);
+}

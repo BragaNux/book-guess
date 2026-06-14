@@ -1,0 +1,458 @@
+@page "/"
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject BookGuessApiClient Api
+
+<PageTitle>BookGuess — Adivinhe o livro</PageTitle>
+
+@if (AppState.IsAuthenticated)
+{
+    <div class="container page-enter" style="padding-top:48px;padding-bottom:72px">
+        <div class="text-center mb-40">
+            <h1>Olá, <span class="text-gradient">@AppState.UserName</span></h1>
+            <p class="mt-12" style="font-size:1.05rem">Pronto para mais um desafio literário?</p>
+        </div>
+
+        <div class="play-grid stagger">
+            <div class="play-card play-card--primary card-glow" @onclick="() => StartMatch(false)">
+                <div class="play-card__icon play-card__icon--primary">
+                    <Icon Name="book-open" Size="28" />
+                </div>
+                <div class="play-card__body">
+                    <h3>Partida Livre</h3>
+                    <p class="mt-4">Trecho aleatório da nossa biblioteca</p>
+                </div>
+                <button class="btn btn-primary mt-20 w-full animate-glow-pulse" disabled="@_loading">
+                    @if (_loading && !_daily) {
+                        <span class="spinner-sm"></span><span>Iniciando...</span>
+                    } else {
+                        <Icon Name="play" Size="14" /><span>Jogar Agora</span>
+                    }
+                </button>
+            </div>
+
+            <div class="play-card play-card--daily card-glow" @onclick="() => StartMatch(true)">
+                <div class="play-card__icon play-card__icon--daily">
+                    <Icon Name="calendar" Size="28" />
+                </div>
+                <div class="play-card__body">
+                    <h3>Desafio Diário</h3>
+                    <p class="mt-4">Todos jogam o mesmo trecho hoje</p>
+                </div>
+                <button class="btn btn-outline-daily mt-20 w-full" disabled="@_loading">
+                    @if (_loading && _daily) {
+                        <span class="spinner-sm"></span><span>Iniciando...</span>
+                    } else {
+                        <Icon Name="target" Size="14" /><span>Jogar Desafio</span>
+                    }
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="dash-alert mt-20">
+                <Icon Name="alert-circle" Size="15" />
+                @_error
+            </div>
+        }
+
+        <div class="mt-48">
+            <div class="section-header mb-20">
+                <div class="flex items-center gap-8">
+                    <Icon Name="trophy" Size="18" Class="text-warning" />
+                    <h2 class="section-title">Top Leitores</h2>
+                </div>
+                <a href="/ranking" class="link-arrow">
+                    Ver ranking completo
+                    <Icon Name="chevron-right" Size="14" />
+                </a>
+            </div>
+
+            @if (_ranking is null)
+            {
+                <div class="card-surface" style="padding:0;overflow:hidden">
+                    @for (int i = 0; i < 3; i++) { <div class="skeleton" style="height:62px;margin:1px 0"></div> }
+                </div>
+            }
+            else if (_ranking.Any())
+            {
+                <div class="card-surface" style="padding:0;overflow:hidden">
+                    @foreach (var e in _ranking.Take(3))
+                    {
+                        <RankingRow Entry="e" />
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-dash">
+                    <Icon Name="trophy" Size="32" Class="text-muted" />
+                    <p class="mt-12">Nenhum resultado ainda. Seja o primeiro!</p>
+                </div>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-grid">
+                <div class="hero__content">
+                    <div class="badge badge-primary mb-24">
+                        <Icon Name="sparkles" Size="11" />
+                        Jogo de Literatura Brasileira
+                    </div>
+                    <h1 class="hero__title">
+                        Você consegue adivinhar o livro pelo
+                        <span class="text-gradient"> trecho?</span>
+                    </h1>
+                    <p class="hero__desc">
+                        Receba um trecho de um clássico e tente identificar a obra. Use dicas geradas por IA se precisar — mas cada dica custa pontos!
+                    </p>
+                    <div class="hero__actions">
+                        <a href="/registro" class="btn btn-primary btn-lg">
+                            <Icon Name="sparkles" Size="16" />
+                            Jogar Grátis
+                        </a>
+                        <a href="/login" class="btn btn-secondary btn-lg">
+                            <Icon Name="log-in" Size="16" />
+                            Já tenho conta
+                        </a>
+                    </div>
+                    <div class="hero__stats">
+                        <div class="hero-stat">
+                            <span class="hero-stat__num">8</span>
+                            <span class="hero-stat__label">Livros</span>
+                        </div>
+                        <div class="hero-stat-divider"></div>
+                        <div class="hero-stat">
+                            <span class="hero-stat__num">3</span>
+                            <span class="hero-stat__label">Dicas por partida</span>
+                        </div>
+                        <div class="hero-stat-divider"></div>
+                        <div class="hero-stat">
+                            <span class="hero-stat__num">5</span>
+                            <span class="hero-stat__label">Tentativas</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="hero__demo">
+                    <div class="demo-card animate-float">
+                        <div class="demo-card__label">
+                            <Icon Name="book-open" Size="11" />
+                            Trecho misterioso
+                        </div>
+                        <p class="quote-text" style="font-size:0.95rem;line-height:1.7">
+                            "Não me importa o que dizem. Tenho minhas razões, e as razões de um homem são como as rugas da sua cara: ninguém as vê sem que ele as mostre."
+                        </p>
+                        <div class="demo-card__footer">
+                            <DifficultyStars Level="4" />
+                            <span class="text-muted text-xs">Qual é este livro?</span>
+                        </div>
+                        <div class="demo-guesses">
+                            <div class="demo-guess demo-guess--wrong">
+                                <Icon Name="x-circle" Size="13" />
+                                Dom Casmurro
+                            </div>
+                            <div class="demo-guess demo-guess--hint">
+                                <Icon Name="lightbulb" Size="13" />
+                                Ambientado no sertão nordestino
+                            </div>
+                            <div class="demo-guess demo-guess--correct">
+                                <Icon Name="check-circle-2" Size="13" />
+                                Vidas Secas
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features-section">
+        <div class="container">
+            <div class="text-center mb-48">
+                <h2>Como funciona?</h2>
+                <p class="mt-10" style="max-width:420px;margin-inline:auto">Simples de jogar, difícil de dominar.</p>
+            </div>
+            <div class="features-grid stagger">
+                @foreach (var f in _features)
+                {
+                    <div class="feature-card card-glow">
+                        <div class="feature-card__icon-wrap @f.Color">
+                            <Icon Name="@f.IconName" Size="24" />
+                        </div>
+                        <h3 class="mt-20">@f.Title</h3>
+                        <p class="mt-8" style="font-size:0.875rem">@f.Desc</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    <!-- Books preview -->
+    <section class="books-section">
+        <div class="container">
+            <div class="text-center mb-32">
+                <h2>Obras na biblioteca</h2>
+                <p class="mt-8">Clássicos da literatura brasileira que você precisa conhecer</p>
+            </div>
+            <div class="books-grid">
+                @foreach (var b in _books)
+                {
+                    <div class="book-chip">
+                        <Icon Name="book" Size="13" />
+                        @b
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="container text-center">
+            <div class="cta-icon-ring">
+                <Icon Name="trophy" Size="28" />
+            </div>
+            <h2 class="mt-24">Testa o teu conhecimento literário!</h2>
+            <p class="mt-12" style="max-width:400px;margin-inline:auto">
+                Crie sua conta grátis e comece a acumular pontos agora.
+            </p>
+            <a href="/registro" class="btn btn-primary btn-lg mt-32">
+                <Icon Name="sparkles" Size="16" />
+                Criar conta grátis
+            </a>
+        </div>
+    </section>
+}
+
+<style>
+    /* ── Dashboard ─────────────────────────────────────────── */
+    .play-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        max-width: 660px;
+        margin: 0 auto;
+    }
+    .play-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 28px;
+        cursor: pointer;
+        transition: all var(--transition-md);
+        display: flex;
+        flex-direction: column;
+    }
+    .play-card:hover { transform: translateY(-3px); }
+    .play-card--primary:hover { border-color: rgba(109,93,252,0.45); box-shadow: 0 12px 40px rgba(109,93,252,0.15); }
+    .play-card--daily:hover   { border-color: rgba(245,158,11,0.45);  box-shadow: 0 12px 40px rgba(245,158,11,0.1); }
+    .play-card__icon {
+        width: 52px; height: 52px;
+        border-radius: var(--radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+        transition: all var(--transition-md);
+    }
+    .play-card__icon--primary { background: var(--primary-light); color: var(--primary); border: 1px solid rgba(109,93,252,0.2); }
+    .play-card__icon--daily   { background: rgba(245,158,11,0.1);  color: var(--warning);  border: 1px solid rgba(245,158,11,0.2); }
+    .play-card--primary:hover .play-card__icon--primary { box-shadow: 0 0 18px rgba(109,93,252,0.3); }
+    .play-card--daily:hover .play-card__icon--daily     { box-shadow: 0 0 18px rgba(245,158,11,0.2); }
+    .play-card__body { flex: 1; }
+    .mt-20 { margin-top: 20px; }
+    .btn-outline-daily {
+        background: transparent;
+        color: var(--warning);
+        border: 1px solid rgba(245,158,11,0.4);
+    }
+    .btn-outline-daily:hover:not(:disabled) { background: rgba(245,158,11,0.1); }
+    .dash-alert {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
+        background: rgba(239,68,68,0.1);
+        border: 1px solid rgba(239,68,68,0.22);
+        border-radius: var(--radius-sm);
+        color: var(--danger);
+        font-size: 0.84rem;
+        max-width: 660px;
+        margin-inline: auto;
+    }
+    .section-header { display: flex; align-items: center; justify-content: space-between; }
+    .section-title  { font-size: 1.2rem; font-weight: 700; }
+    .link-arrow { display: flex; align-items: center; gap: 4px; font-size: 0.84rem; color: var(--primary); font-weight: 500; }
+    .link-arrow:hover { color: var(--primary-hover); }
+    .empty-dash { text-align: center; padding: 40px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .mt-48 { margin-top: 48px; }
+
+    /* ── Hero ─────────────────────────────────────────────── */
+    .hero { padding: 88px 0 72px; }
+    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+    .hero__title { font-size: 2.9rem; line-height: 1.1; }
+    .hero__desc  { font-size: 1.05rem; line-height: 1.75; max-width: 460px; margin-top: 22px; }
+    .hero__actions { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+    .hero__stats   { display: flex; align-items: center; gap: 24px; margin-top: 36px; }
+    .hero-stat     { text-align: center; }
+    .hero-stat__num   { display: block; font-size: 1.5rem; font-weight: 800; color: var(--text); }
+    .hero-stat__label { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+    .hero-stat-divider { width: 1px; height: 28px; background: var(--border); }
+    .mb-24 { margin-bottom: 24px; }
+    .mb-48 { margin-bottom: 48px; }
+    .mt-10 { margin-top: 10px; }
+
+    /* Demo card */
+    .hero__demo { position: relative; }
+    .demo-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 28px;
+        box-shadow: 0 24px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(109,93,252,0.1);
+    }
+    .demo-card__label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--primary);
+        margin-bottom: 18px;
+    }
+    .demo-card__footer { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 14px; }
+    .demo-guesses      { display: flex; flex-direction: column; gap: 7px; }
+    .demo-guess {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 0.82rem;
+        font-weight: 500;
+    }
+    .demo-guess--wrong   { background: rgba(239,68,68,0.1);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.18); }
+    .demo-guess--hint    { background: rgba(109,93,252,0.1); color: var(--primary); border: 1px solid rgba(109,93,252,0.18); }
+    .demo-guess--correct { background: rgba(34,197,94,0.1);  color: var(--success); border: 1px solid rgba(34,197,94,0.18); }
+
+    /* Features */
+    .features-section { padding: 88px 0; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .features-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+    .feature-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 28px;
+        transition: all var(--transition-md);
+    }
+    .feature-card__icon-wrap {
+        width: 52px; height: 52px;
+        border-radius: var(--radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .icon-purple { background: var(--primary-light); color: var(--primary); border: 1px solid rgba(109,93,252,0.2); }
+    .icon-cyan   { background: rgba(6,182,212,0.1);   color: var(--accent);  border: 1px solid rgba(6,182,212,0.2);  }
+    .icon-gold   { background: rgba(245,158,11,0.1);  color: var(--warning); border: 1px solid rgba(245,158,11,0.2); }
+
+    /* Books */
+    .books-section { padding: 88px 0; }
+    .books-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .book-chip {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 18px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 100px;
+        font-size: 0.84rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        transition: all var(--transition-md);
+    }
+    .book-chip:hover { border-color: rgba(109,93,252,0.4); color: var(--primary); }
+
+    /* CTA */
+    .cta-section { padding: 88px 0; background: var(--surface); border-top: 1px solid var(--border); }
+    .cta-icon-ring {
+        width: 72px; height: 72px;
+        border-radius: 50%;
+        background: rgba(245,158,11,0.1);
+        border: 1px solid rgba(245,158,11,0.25);
+        color: var(--warning);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        box-shadow: 0 0 30px rgba(245,158,11,0.15);
+    }
+
+    @@media (max-width: 768px) {
+        .hero-grid { grid-template-columns: 1fr; }
+        .hero__title { font-size: 2rem; }
+        .hero__demo  { display: none; }
+        .features-grid { grid-template-columns: 1fr; }
+        .play-grid { grid-template-columns: 1fr; max-width: 400px; }
+    }
+</style>
+
+@code {
+    private IEnumerable<RankingEntry>? _ranking;
+    private string? _error;
+    private bool _loading;
+    private bool _daily;
+
+    private record Feature(string IconName, string Color, string Title, string Desc);
+    private readonly Feature[] _features =
+    [
+        new("book-open", "icon-purple", "Trecho Misterioso", "Receba um trecho de um clássico e tente identificar título e autor."),
+        new("sparkles",  "icon-cyan",   "Dicas com IA",      "Peça até 3 dicas geradas pelo Claude — mas cada dica reduz sua pontuação."),
+        new("trophy",    "icon-gold",   "Ranking Global",    "Acumule pontos, suba de nível e dispute com outros leitores todo dia."),
+    ];
+
+    private readonly string[] _books =
+    [
+        "Dom Casmurro", "O Cortiço", "Iracema", "Vidas Secas",
+        "Memórias Póstumas", "O Guarani", "Capitães da Areia", "Macunaíma"
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AppState.IsAuthenticated)
+        {
+            var res = await Api.GetRankingAsync("global");
+            if (res?.Success == true) _ranking = res.Data;
+        }
+    }
+
+    private async Task StartMatch(bool daily)
+    {
+        _loading = true;
+        _daily   = daily;
+        _error   = null;
+
+        var res = await Api.StartMatchAsync(daily);
+        if (res?.Success == true && res.Data is not null)
+        {
+            AppState.ActiveMatch = res.Data;
+            Nav.NavigateTo("/partida");
+        }
+        else
+        {
+            _error = res?.Message ?? "Erro ao iniciar partida.";
+        }
+
+        _loading = false;
+    }
+}

@@ -1,0 +1,162 @@
+@page "/login"
+@inject BookGuessApiClient Api
+@inject AppState AppState
+@inject NavigationManager Nav
+@inject ILocalStorageService Storage
+
+<PageTitle>Entrar — BookGuess</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-box page-enter">
+        <div class="auth-logo-wrap">
+            <div class="auth-logo-icon">
+                <Icon Name="book-open" Size="26" />
+            </div>
+        </div>
+        <h2 class="auth-title">Bem-vindo de volta</h2>
+        <p class="auth-sub">Continue sua jornada literária</p>
+
+        <EditForm Model="_form" OnValidSubmit="HandleLogin" class="auth-form">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label class="form-label">E-mail</label>
+                <div class="input-wrap">
+                    <span class="input-icon"><Icon Name="mail" Size="15" /></span>
+                    <input @bind="_form.Email" @bind:event="oninput"
+                           class="form-input" type="email" placeholder="seu@email.com" />
+                </div>
+            </div>
+
+            <div class="form-group mt-16">
+                <label class="form-label">Senha</label>
+                <div class="input-wrap has-right">
+                    <span class="input-icon"><Icon Name="lock" Size="15" /></span>
+                    <input @bind="_form.Password" @bind:event="oninput"
+                           class="form-input"
+                           type="@(_showPwd ? "text" : "password")"
+                           placeholder="••••••••" />
+                    <button type="button" class="input-icon-right" @onclick="() => _showPwd = !_showPwd">
+                        <Icon Name="@(_showPwd ? "eye-off" : "eye")" Size="15" />
+                    </button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="auth-error">
+                    <Icon Name="alert-circle" Size="15" />
+                    @_error
+                </div>
+            }
+
+            <button type="submit" class="btn btn-primary w-full mt-24" disabled="@_loading">
+                @if (_loading) {
+                    <span class="spinner-sm"></span><span>Entrando...</span>
+                } else {
+                    <Icon Name="log-in" Size="15" /><span>Entrar</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="auth-footer">
+            Não tem conta? <a href="/registro">Criar conta grátis</a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .auth-page {
+        min-height: calc(100vh - 64px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 16px;
+        background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(109,93,252,0.08) 0%, transparent 70%);
+    }
+    .auth-box {
+        width: 100%;
+        max-width: 400px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 40px;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.4), 0 0 0 1px rgba(109,93,252,0.06);
+    }
+    .auth-logo-wrap {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 22px;
+    }
+    .auth-logo-icon {
+        width: 58px; height: 58px;
+        border-radius: var(--radius);
+        background: var(--primary-light);
+        border: 1px solid rgba(109,93,252,0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--primary);
+        box-shadow: 0 0 24px rgba(109,93,252,0.2);
+    }
+    .auth-title { text-align: center; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .auth-sub   { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 6px; }
+    .auth-form  { margin-top: 28px; }
+    .auth-error {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        padding: 11px 14px;
+        background: rgba(239,68,68,0.1);
+        border: 1px solid rgba(239,68,68,0.22);
+        border-radius: var(--radius-sm);
+        color: var(--danger);
+        font-size: 0.84rem;
+    }
+    .auth-footer {
+        text-align: center;
+        margin-top: 24px;
+        font-size: 0.84rem;
+        color: var(--text-muted);
+    }
+</style>
+
+@code {
+    private LoginForm _form = new();
+    private string? _error;
+    private bool _loading;
+    private bool _showPwd;
+
+    private class LoginForm
+    {
+        public string Email    { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+
+    protected override void OnInitialized()
+    {
+        if (AppState.IsAuthenticated) Nav.NavigateTo("/");
+    }
+
+    private async Task HandleLogin()
+    {
+        _loading = true;
+        _error   = null;
+
+        var res = await Api.LoginAsync(_form.Email, _form.Password);
+
+        if (res?.Success == true && res.Data is not null)
+        {
+            await Storage.SetItemAsStringAsync("bg_token", res.Data.Token);
+            AppState.SetUser(res.Data);
+            Nav.NavigateTo("/");
+        }
+        else
+        {
+            _error = res?.Message ?? "E-mail ou senha incorretos.";
+        }
+
+        _loading = false;
+    }
+}

@@ -1,0 +1,29 @@
+@inject ILocalStorageService Storage
+@inject AppState AppState
+@inject BookGuessApiClient Api
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || AppState.IsAuthenticated) return;
+
+        var token = await Storage.GetItemAsStringAsync("bg_token");
+        if (string.IsNullOrEmpty(token)) return;
+
+        // Token existe no localStorage — restaura o estado chamando o perfil
+        AppState.Token = token;
+        var res = await Api.GetProfileAsync();
+
+        if (res?.Success == true && res.Data is not null)
+        {
+            var p = res.Data;
+            AppState.SetUser(new AuthResponse(token, p.Name, p.Email, p.Level, p.XP));
+        }
+        else
+        {
+            // Token expirado ou inválido
+            await Storage.RemoveItemAsync("bg_token");
+            AppState.Clear();
+        }
+    }
+}

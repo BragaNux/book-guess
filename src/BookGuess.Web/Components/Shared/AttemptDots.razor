@@ -1,0 +1,13 @@
+<div class="attempt-dots">
+    @for (int i = 1; i <= Total; i++)
+    {
+        int dot = i;
+        var cls = dot > Remaining ? "used" : "";
+        <div class="attempt-dot @cls"></div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Total { get; set; } = 5;
+    [Parameter] public int Remaining { get; set; }
+}
